@@ -3,9 +3,12 @@ package Audio::Ardour::Control;
 use 5.008008;
 use strict;
 use warnings;
+use Carp;
+use File::Spec;
 use Net::LibLO;
+use File::HomeDir;
 
-our $VERSION = '0.10';
+our $VERSION = '0.20';
 
 =head1 NAME
 
@@ -39,21 +42,27 @@ Ardour documentation.
 
 =item new
 
-Construct a new Audio::Ardour::Control object. The mandatory argument is the
+Construct a new Audio::Ardour::Control object. The only argument is the
 URL of the Ardour OSC instance in the form C<osc.udp://<hostname>:<port>/>,
-this is printed to STDOUT by Ardour when the OSC is enabled.
+this is printed to STDERR by Ardour when the OSC is enabled.  For versions
+of Ardour from 2.2 onwards the URL will be written to a file in the user
+specific config directory and an attempt will be made to determine the URL
+from that source, if it is not present and no URL has been specified as an
+argument then this will croak.
 
 =cut
 
 sub new
 {
    my ( $class, $url ) = @_;
-   die "URL must be provided!" unless $url;
    
 
    my $self = bless {}, $class;
 
-   $self->url($url);
+   if( ! $self->url($url) )
+   {
+      croak "Cannot discover URL and no URL specified";
+   }
 
    return $self;
 
@@ -75,6 +84,9 @@ sub add_marker
 
 
 =item loop_toggle
+
+This toggles the effect of the loop range, if loop is on then transport_play
+will loop over the defined loop range.
 
 =cut
 
@@ -116,7 +128,7 @@ sub goto_end
 
 =item rewind
 
-Roll the transport backward at the currently set transport speed.
+Roll the transport backward at twice the standard transport speed.
 
 =cut
 
@@ -130,7 +142,7 @@ sub rewind
 
 =item ffwd
 
-Roll the transport forward at the currently set transport speed.
+Roll the transport forward at twice the standard transport speed.
 
 =cut
 
@@ -299,7 +311,8 @@ sub rec_enable_toggle
 
 =item toggle_all_rec_enables
 
-toggle the track record enables.
+Toggle the track record enables. The track enables will not turn *off*
+unless global record arming is set (i.e. the big record button is highlighted.)
 
 =cut
 
@@ -324,6 +337,10 @@ general use unless you are sub-classing or extending this module.
 Get and/or set the URL to connect to the instance of Ardour we want to
 control.
 
+If the url is not specifiied and has not been previously set then 
+discover_url() will be called. It will return undef if no URL can be
+found.
+
 =cut
 
 sub url
@@ -335,7 +352,39 @@ sub url
       $self->{_url} = $url;
    }
 
+   if ( not exists $self->{_url} )
+   {
+      if ( $url = $self->discover_url() )
+      {
+         $self->{_url} = $url;
+      }
+   }
+
    return $self->{_url};
+}
+
+=item discover_url
+
+Attempt to read the URL from the $HOME/.ardour2/osc_url file, returns undef
+if the file doesn't exist.
+
+This will not work for Ardour versions earlier than 2.2
+
+=cut
+
+sub discover_url
+{
+   my ( $self ) = @_;
+
+   my $home = File::HomeDir->my_home();
+   my $osc_url = File::Spec->catfile($home,'.ardour2','osc_url');
+
+   my $url;
+   if ( open URL, $osc_url )
+   {
+      chomp($url = <URL>);
+   }
+   return $url;
 }
 
 =item send

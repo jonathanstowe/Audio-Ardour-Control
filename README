@@ -1,5 +1,5 @@
-Audio::Ardour::Control version 0.1
-=================================
+Audio::Ardour::Control version 0.2
+==================================
 
 Audio::Ardour::Control provides a facility to control the Ardour DAW
 using the Open Sound Control protocol.
